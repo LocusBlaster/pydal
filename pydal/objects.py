@@ -965,9 +965,13 @@ class Table(Serializable, BasicStorage):
         if any(f(row) for f in self._before_insert):
             return 0
         ret = self._db._adapter.insert(self, row.op_values())
-        if ret and self._after_insert:
-            for f in self._after_insert:
-                f(row, ret)
+        if ret:
+            # Invalidate cache for this table
+            if hasattr(self._db, "_cache_manager") and self._db._cache_manager:
+                self._db._cache_manager.invalidate_table(self._tablename)
+            if self._after_insert:
+                for f in self._after_insert:
+                    f(row, ret)
         return ret
 
     def _validate_fields(self, fields, record=None):
@@ -2990,7 +2994,11 @@ class Set(Serializable):
         if any(f(self) for f in table._before_delete):
             return 0
         ret = db._adapter.delete(table, self.query)
-        ret and [f(self) for f in table._after_delete]
+        if ret:
+            # Invalidate cache for this table
+            if hasattr(db, "_cache_manager") and db._cache_manager:
+                db._cache_manager.invalidate_table(table._tablename)
+            [f(self) for f in table._after_delete]
         return ret
 
     def delete_naive(self):
@@ -3000,6 +3008,10 @@ class Set(Serializable):
         db = self.db
         table = db._adapter.get_table(self.query)
         ret = db._adapter.delete(table, self.query)
+        if ret:
+            # Invalidate cache for this table
+            if hasattr(db, "_cache_manager") and db._cache_manager:
+                db._cache_manager.invalidate_table(table._tablename)
         return ret
 
     def update(self, **update_fields):
@@ -3011,23 +3023,33 @@ class Set(Serializable):
         if any(f(self, row) for f in table._before_update):
             return 0
         ret = db._adapter.update(table, self.query, row.op_values())
-        ret and [f(self, row) for f in table._after_update]
+        if ret:
+            # Invalidate cache for this table
+            if hasattr(db, "_cache_manager") and db._cache_manager:
+                db._cache_manager.invalidate_table(table._tablename)
+            [f(self, row) for f in table._after_update]
         return ret
 
     def update_naive(self, **update_fields):
         """
         Same as update but does not call table._before_update and _after_update
         """
-        table = self.db._adapter.get_table(self.query)
+        db = self.db
+        table = db._adapter.get_table(self.query)
         row = table._fields_and_values_for_update(update_fields)
         if not row._values:
             raise ValueError("No fields to update")
-        ret = self.db._adapter.update(table, self.query, row.op_values())
+        ret = db._adapter.update(table, self.query, row.op_values())
+        if ret:
+            # Invalidate cache for this table
+            if hasattr(db, "_cache_manager") and db._cache_manager:
+                db._cache_manager.invalidate_table(table._tablename)
         return ret
 
     def validate_and_update(self, **update_fields):
         response = {"updated": 0, "errors": {}}
-        table = self.db._adapter.get_table(self.query)
+        db = self.db
+        table = db._adapter.get_table(self.query)
         # use {} instead of None to make an empty record
         # to that we use update values instead of default values
         errors, new_fields = table._validate_fields(update_fields, {})
@@ -3041,8 +3063,12 @@ class Set(Serializable):
             if any(f(self, row) for f in table._before_update):
                 ret = 0
             else:
-                ret = self.db._adapter.update(table, self.query, row.op_values())
-                ret and [f(self, row) for f in table._after_update]
+                ret = db._adapter.update(table, self.query, row.op_values())
+                if ret:
+                    # Invalidate cache for this table
+                    if hasattr(db, "_cache_manager") and db._cache_manager:
+                        db._cache_manager.invalidate_table(table._tablename)
+                    [f(self, row) for f in table._after_update]
             response["updated"] = ret
         return response
 

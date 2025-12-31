@@ -619,9 +619,9 @@ class SQLAdapter(BaseAdapter):
 
     def _geoexpand(self, field, query_env):
         if (
-            isinstance(field.type, str)
+            isinstance(field, Field)
+            and isinstance(field.type, str)
             and field.type.startswith("geo")
-            and isinstance(field, Field)
         ):
             field = field.st_astext()
         return self.expand(field, query_env=query_env)
@@ -910,7 +910,17 @@ class SQLAdapter(BaseAdapter):
     def select(self, query, fields, attributes):
         colnames, sql = self._select_wcols(query, fields, **attributes)
         cache = attributes.get("cache", None)
-        if cache and attributes.get("cacheable", False):
+        
+        # Check if cache=True (use CacheManager) vs cache=(model, expire) (old style)
+        if cache is True:
+            # Use the new CacheManager
+            if hasattr(self.db, "_cache_manager") and self.db._cache_manager:
+                return self.db._cache_manager.cache_query(query, fields, attributes)
+            else:
+                # Fallback if cache manager not available
+                return self._select_aux(sql, fields, attributes, colnames)
+        elif cache and attributes.get("cacheable", False):
+            # Old-style cache
             return self._cached_select(cache, sql, fields, attributes, colnames)
         return self._select_aux(sql, fields, attributes, colnames)
 
@@ -944,7 +954,11 @@ class SQLAdapter(BaseAdapter):
         return self.cursor.fetchone()[0]
 
     def bulk_insert(self, table, items):
-        return [self.insert(table, item) for item in items]
+        result = [self.insert(table, item) for item in items]
+        # Invalidate cache for this table after bulk insert
+        if result and hasattr(self.db, "_cache_manager") and self.db._cache_manager:
+            self.db._cache_manager.invalidate_table(table._tablename)
+        return result
 
     def create_table(self, *args, **kwargs):
         return self.migrator.create_table(*args, **kwargs)

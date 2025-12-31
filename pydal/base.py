@@ -562,6 +562,11 @@ class DAL(with_metaclass(MetaDAL, Serializable, BasicStorage)):
         if self.serializers is not None:
             for k, v in self.serializers.items():
                 serializers._custom_[k] = v
+        
+        # Initialize cache manager
+        from .caching import CacheManager
+        self._cache_manager = CacheManager(self)
+        
         if auto_import or tables:
             self.import_table_definitions(adapter.folder, tables=tables)
 
