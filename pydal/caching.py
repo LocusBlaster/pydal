@@ -282,8 +282,20 @@ class CacheManager:
         # Remove cache attribute to prevent _select_aux from trying to use it
         exec_attributes = dict(attributes)
         exec_attributes.pop("cache", None)
-        colnames, sql = adapter._select_wcols(query, fields, **exec_attributes)
-        result = adapter._select_aux(sql, fields, exec_attributes, colnames)
+        
+        # Expand fields to handle SQLALL objects (like db.table.ALL)
+        # This must be done before calling _select_wcols to avoid AttributeError
+        tablenames = adapter.tables(
+            query,
+            exec_attributes.get("join", None),
+            exec_attributes.get("left", None),
+            exec_attributes.get("orderby", None),
+            exec_attributes.get("groupby", None),
+        )
+        expanded_fields = adapter.expand_all(fields, tablenames)
+        
+        colnames, sql = adapter._select_wcols(query, expanded_fields, **exec_attributes)
+        result = adapter._select_aux(sql, expanded_fields, exec_attributes, colnames)
 
         # Store result
         with self._lock:
