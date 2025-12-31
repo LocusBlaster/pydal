@@ -1,7 +1,18 @@
 diff --git a/pydal/adapters/base.py b/pydal/adapters/base.py
-index 608663c..76b461a 100644
+index 608663c..7d5d728 100644
 --- a/pydal/adapters/base.py
 +++ b/pydal/adapters/base.py
+@@ -619,9 +619,9 @@ class SQLAdapter(BaseAdapter):
+     def _geoexpand(self, field, query_env):
+         if (
+-            isinstance(field.type, str)
++            isinstance(field, Field)
++            and isinstance(field.type, str)
+             and field.type.startswith("geo")
+-            and isinstance(field, Field)
+         ):
+             field = field.st_astext()
+         return self.expand(field, query_env=query_env)
 @@ -910,7 +910,17 @@ class SQLAdapter(BaseAdapter):
      def select(self, query, fields, attributes):
          colnames, sql = self._select_wcols(query, fields, **attributes)

@@ -129,10 +129,8 @@ tests/__pycache__/caching.cpython-312.pyc
 tests/__pycache__/contribs.cpython-312.pyc
 tests/__pycache__/indexes.cpython-312.pyc
 tests/__pycache__/is_url_validators.cpython-312.pyc
-tests/__pycache__/nosql.cpython-312.pyc
 tests/__pycache__/querybuilder.cpython-312.pyc
 tests/__pycache__/restapi.cpython-312.pyc
-tests/__pycache__/scheduler.cpython-312.pyc
 tests/__pycache__/smart_query.cpython-312.pyc
 tests/__pycache__/sql.cpython-312.pyc
 tests/__pycache__/tags.cpython-312.pyc

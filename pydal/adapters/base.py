@@ -619,9 +619,9 @@ class SQLAdapter(BaseAdapter):
 
     def _geoexpand(self, field, query_env):
         if (
-            isinstance(field.type, str)
+            isinstance(field, Field)
+            and isinstance(field.type, str)
             and field.type.startswith("geo")
-            and isinstance(field, Field)
         ):
             field = field.st_astext()
         return self.expand(field, query_env=query_env)
