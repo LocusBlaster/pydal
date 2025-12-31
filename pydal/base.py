@@ -559,6 +559,7 @@ class DAL(with_metaclass(MetaDAL, Serializable, BasicStorage)):
         self._fake_migrate = fake_migrate
         self._migrate_enabled = migrate_enabled
         self._fake_migrate_all = fake_migrate_all
+        self._cache_manager = None
         if self.serializers is not None:
             for k, v in self.serializers.items():
                 serializers._custom_[k] = v

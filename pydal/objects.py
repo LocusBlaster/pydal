@@ -190,7 +190,9 @@ class Row(BasicStorage):
         key = str(k)
 
         _extra = BasicStorage.get(self, "_extra", None)
-        return (_extra is not None and k in _extra) or BasicStorage.__contains__(self, key)
+        return (_extra is not None and k in _extra) or BasicStorage.__contains__(
+            self, key
+        )
 
     def __repr__(self):
         return "<Row %s>" % self.as_dict(custom_types=[LazySet])
@@ -968,6 +970,11 @@ class Table(Serializable, BasicStorage):
         if ret and self._after_insert:
             for f in self._after_insert:
                 f(row, ret)
+
+        # Invalidate cache for the affected table
+        if self._db._cache_manager is not None and ret:
+            self._db._cache_manager.invalidate_table(self._tablename)
+
         return ret
 
     def _validate_fields(self, fields, record=None):
@@ -1119,13 +1126,24 @@ class Table(Serializable, BasicStorage):
         ret and [
             [f(el, ret[k]) for k, el in enumerate(data)] for f in self._after_insert
         ]
+
+        # Invalidate cache for the affected table
+        if self._db._cache_manager is not None and ret:
+            self._db._cache_manager.invalidate_table(self._tablename)
+
         return ret
 
     def _truncate(self, mode=""):
         return self._db._adapter.dialect.truncate(self, mode)
 
     def truncate(self, mode=""):
-        return self._db._adapter.truncate(self, mode)
+        ret = self._db._adapter.truncate(self, mode)
+
+        # Invalidate cache for the affected table
+        if self._db._cache_manager is not None:
+            self._db._cache_manager.invalidate_table(self._tablename)
+
+        return ret
 
     def import_from_csv_file(
         self,
@@ -2945,6 +2963,17 @@ class Set(Serializable):
             attributes.get("groupby", None),
         )
         fields = adapter.expand_all(fields, tablenames)
+
+        # Check if cache manager is enabled
+        cache = attributes.get("cache", None)
+        if cache is True and self.db._cache_manager is not None:
+            # Use cache manager with default TTL
+            del attributes["cache"]
+            ttl = attributes.pop("cache_ttl", None)
+            return self.db._cache_manager.cache_query(
+                self.query, fields, attributes, ttl=ttl
+            )
+
         return adapter.select(self.query, fields, attributes)
 
     def iterselect(self, *fields, **attributes):
@@ -2991,6 +3020,11 @@ class Set(Serializable):
             return 0
         ret = db._adapter.delete(table, self.query)
         ret and [f(self) for f in table._after_delete]
+
+        # Invalidate cache for the affected table
+        if db._cache_manager is not None and ret:
+            db._cache_manager.invalidate_table(table._tablename)
+
         return ret
 
     def delete_naive(self):
@@ -3000,6 +3034,11 @@ class Set(Serializable):
         db = self.db
         table = db._adapter.get_table(self.query)
         ret = db._adapter.delete(table, self.query)
+
+        # Invalidate cache for the affected table
+        if db._cache_manager is not None and ret:
+            db._cache_manager.invalidate_table(table._tablename)
+
         return ret
 
     def update(self, **update_fields):
@@ -3012,6 +3051,11 @@ class Set(Serializable):
             return 0
         ret = db._adapter.update(table, self.query, row.op_values())
         ret and [f(self, row) for f in table._after_update]
+
+        # Invalidate cache for the affected table
+        if db._cache_manager is not None and ret:
+            db._cache_manager.invalidate_table(table._tablename)
+
         return ret
 
     def update_naive(self, **update_fields):
@@ -3023,6 +3067,11 @@ class Set(Serializable):
         if not row._values:
             raise ValueError("No fields to update")
         ret = self.db._adapter.update(table, self.query, row.op_values())
+
+        # Invalidate cache for the affected table
+        if self.db._cache_manager is not None and ret:
+            self.db._cache_manager.invalidate_table(table._tablename)
+
         return ret
 
     def validate_and_update(self, **update_fields):
