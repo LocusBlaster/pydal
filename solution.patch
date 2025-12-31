@@ -64,10 +64,10 @@ index 6691e56..1076607 100644
  
 diff --git a/pydal/caching.py b/pydal/caching.py
 new file mode 100644
-index 0000000..343e61d
+index 0000000..dff7c53
 --- /dev/null
 +++ b/pydal/caching.py
-@@ -0,0 +1,376 @@
+@@ -0,0 +1,388 @@
 +# -*- coding: utf-8 -*-
 +"""
 +Query result caching with LRU eviction and automatic invalidation
@@ -352,8 +352,20 @@ index 0000000..343e61d
 +        # Remove cache attribute to prevent _select_aux from trying to use it
 +        exec_attributes = dict(attributes)
 +        exec_attributes.pop("cache", None)
-+        colnames, sql = adapter._select_wcols(query, fields, **exec_attributes)
-+        result = adapter._select_aux(sql, fields, exec_attributes, colnames)
++        
++        # Expand fields to handle SQLALL objects (like db.table.ALL)
++        # This must be done before calling _select_wcols to avoid AttributeError
++        tablenames = adapter.tables(
++            query,
++            exec_attributes.get("join", None),
++            exec_attributes.get("left", None),
++            exec_attributes.get("orderby", None),
++            exec_attributes.get("groupby", None),
++        )
++        expanded_fields = adapter.expand_all(fields, tablenames)
++        
++        colnames, sql = adapter._select_wcols(query, expanded_fields, **exec_attributes)
++        result = adapter._select_aux(sql, expanded_fields, exec_attributes, colnames)
 +
 +        # Store result
 +        with self._lock:
